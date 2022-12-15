@@ -208,6 +208,7 @@ class VAE(tf.keras.Model):
         self.beta = beta
         self.K = K
         self.M = M
+        self.prior = None
 
     def encode(self, x):
         x = tf.identity(x)  # in case x is not a Tensor already...

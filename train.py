@@ -114,7 +114,7 @@ def main(argv):
     ###################################
 
     if FLAGS.data_type == "hmnist":
-        FLAGS.data_dir = "data/hmnist/hmnist_mnar.npz"
+        FLAGS.data_dir = "/home/clement/Documents/rvae/benchmark_VAE/examples/data/rotated_mnist/missing_for_gpvae_60.npz"
         data_dim = 784
         time_length = 10
         num_classes = 10
@@ -131,7 +131,7 @@ def main(argv):
         decoder = GaussianDecoder
     elif FLAGS.data_type == "sprites":
         if FLAGS.data_dir == "":
-            FLAGS.data_dir = "data/sprites/sprites.npz"
+            FLAGS.data_dir = "/home/clement/Documents/rvae/benchmark_VAE/examples/data/sprites/missing_for_gpvae.npz"
         data_dim = 12288
         time_length = 8
         decoder = GaussianDecoder
@@ -146,19 +146,19 @@ def main(argv):
     #############
 
     data = np.load(FLAGS.data_dir)
-    x_train_full = data['x_train_full']
-    x_train_miss = data['x_train_miss']
-    m_train_miss = data['m_train_miss']
-    if FLAGS.data_type in ['hmnist', 'physionet']:
-        y_train = data['y_train']
+    #x_train_full = data['x_train_full'].reshape(-1, time_length, data_dim).astype(np.int64)
+    x_train_miss = data['x_train_miss'].reshape(-1, time_length, data_dim)
+    m_train_miss = data['m_train_miss'].reshape(-1, time_length, data_dim)
+    #if FLAGS.data_type in ['hmnist', 'physionet']:
+    #    y_train = data['y_train']
 
     if FLAGS.testing:
         if FLAGS.data_type in ['hmnist', 'sprites']:
-            x_val_full = data['x_test_full']
-            x_val_miss = data['x_test_miss']
-            m_val_miss = data['m_test_miss']
-        if FLAGS.data_type == 'hmnist':
-            y_val = data['y_test']
+            x_val_full = data['x_test_full'].reshape(-1, time_length, data_dim)
+            x_val_miss = data['x_test_miss'].reshape(-1, time_length, data_dim)
+            m_val_miss = data['m_test_miss'].reshape(-1, time_length, data_dim)
+        #if FLAGS.data_type == 'hmnist':
+        #    y_val = data['y_test']
         elif FLAGS.data_type == 'physionet':
             x_val_full = data['x_train_full']
             x_val_miss = data['x_train_miss']
@@ -183,12 +183,18 @@ def main(argv):
         y_val = data["y_val"]
     else:
         raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
+    
+    print("-----------------------------------------------------------------------------")
+    print("Train data shapes: ", (tf.shape(x_train_miss), tf.shape(m_train_miss)))
+    print("Test data shapes: ", (tf.shape(x_val_miss), tf.shape(m_val_miss)))
+    print("Prob missing data: ", m_train_miss[0][0].sum() / data_dim)
+    print("-----------------------------------------------------------------------------")
 
     tf_x_train_miss = tf.data.Dataset.from_tensor_slices((x_train_miss, m_train_miss))\
                                      .shuffle(len(x_train_miss)).batch(FLAGS.batch_size).repeat()
     tf_x_val_miss = tf.data.Dataset.from_tensor_slices((x_val_miss, m_val_miss)).batch(FLAGS.batch_size).repeat()
     tf_x_val_miss = tf.compat.v1.data.make_one_shot_iterator(tf_x_val_miss)
-
+    
     # Build Conv2D preprocessor for image data
     if FLAGS.data_type in ['hmnist', 'sprites']:
         print("Using CNN preprocessor")
@@ -197,7 +203,7 @@ def main(argv):
         image_preprocessor = None
     else:
         raise ValueError("Data type must be one of ['hmnist', 'physionet', 'sprites']")
-
+    print("here")
 
     ###############
     # Build model #
@@ -365,7 +371,7 @@ def main(argv):
     n_missings = m_val_artificial.sum() if FLAGS.data_type == 'physionet' else m_val_miss.sum()
     nll_miss = np.sum([model.compute_nll(x, y=y, m_mask=m).numpy()
                        for x, y, m in get_val_batches()]) / n_missings
-    mse_miss = np.sum([model.compute_mse(x, y=y, m_mask=m, binary=FLAGS.data_type=="hmnist").numpy()
+    mse_miss = np.sum([model.compute_mse(x, y=y, m_mask=m, binary=False).numpy()
                        for x, y, m in get_val_batches()]) / n_missings
     print("NLL miss: {:.4f}".format(nll_miss))
     print("MSE miss: {:.4f}".format(mse_miss))
